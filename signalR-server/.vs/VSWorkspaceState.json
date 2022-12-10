@@ -1,0 +1,16 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\signalR-server-master",
+    "\\signalR-server-master\\signalR_test",
+    "\\signalR-server-master\\signalR_test\\Business",
+    "\\signalR-server-master\\signalR_test\\Controller",
+    "\\signalR-server-master\\signalR_test\\Helper",
+    "\\signalR-server-master\\signalR_test\\Hubs",
+    "\\signalR-server-master\\signalR_test\\Interfaces",
+    "\\signalR-server-master\\signalR_test\\Models",
+    "\\signalR-server-master\\signalR_test\\Properties"
+  ],
+  "SelectedNode": "\\signalR-server-master\\signalR_server.sln",
+  "PreviewInSolutionExplorer": false
+}

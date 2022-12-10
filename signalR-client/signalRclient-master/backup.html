@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="signalr.min.js"></script>
+        <script src="jquery.min.js"></script>
+
+        <script> 
+            // determine the hub that the client will connect to with webSocket
+            $(document).ready(() => {
+                const connection = new signalR.HubConnectionBuilder()
+                .withUrl("http://localhost:5001/messagehub")
+                .withAutomaticReconnect([1000,1000,2000,5000]) // used when disconnected - parameters are ms 
+                .build();
+                // if the client couldn't connect to the server these functions will be used
+                async function start() {
+                    try {
+                        await connection.start();
+                    } catch(error) {
+                        setTimeout(() => start(), 2000);
+                    }
+                }
+
+                start();
+
+                function animation() {
+                    status.fadeIn(2000, () => {
+                        setTimeout(() => {
+                            status.fadeOut(2000);
+                        }, 2000)
+                    });
+                }
+
+                const status = $("#status");
+                // this event awakes while trying to reconnect to the server 
+                connection.onreconnecting(error => {
+                    status.css("background-color", "blue");
+                    status.css("color", "white");
+                    status.html("Connecting...");
+                    animation();
+                });
+
+                // this event awakes when reconnected to the server
+                connection.onreconnected(connectionId => {
+                    status.css("background-color", "green");
+                    status.css("color", "white");
+                    status.html("Connected!");
+                    animation();
+                });
+
+                // this event awakes if client couldn't reconnect to the server after trying few times
+                connection.onclose(error => {
+                    status.css("background-color", "red");
+                    status.css("color", "white");
+                    status.html("Connection failed.");
+                    animation();
+                });
+
+
+                // server will notify the clients through this event when a user joined
+                connection.on("userJoined", connectionId => {
+                    status.html(`${connectionId} joined.`);
+                    status.css("background-color", "green");
+                    animation();
+                });
+
+                // server will notify the clients through this event when a user left
+                connection.on("userLeft", connectionId => {
+                    status.html(`${connectionId} left.`);
+                    status.css("background-color", "red");
+                    animation();
+                });
+
+                // write the online clients list to the screen
+                connection.on("clients", clientId => {
+                    let clientIdsTxt = "";
+                    $.each(clientId, (index, item) => {
+                        clientIdsTxt += `<li>${item}</li>`;
+                    });
+                    $("#clients").html(clientIdsTxt);                    
+
+                });
+                // send the client's message to the SendMessageAsync method in the server
+                $("#btnSend").click(() => {
+                    let message = $("#txtMessage").val();
+                    let connectionIds = $("#connectionIds").val().split(",");
+
+                    // send to group chosen with radio buttons
+                    connection.invoke("SendMessageAsync", message, $("input[name=group]:checked").val()).catch(error => console.log(`Error occured while sending a message. ${error}`));
+                    
+                    // send to clients with specified connectionIds 
+                    //connection.invoke("SendMessageAsync", message, connectionIds).catch(error => console.log(`Error occured while sending a message. ${error}`));
+
+                    // send All, Caller, Others
+                    //connection.invoke("SendMessageAsync", message).catch(error => console.log(`Error occured while sending a message. ${error}`));
+                });
+
+                // take the message that have been send from the server with the RPC system
+                connection.on("receiveMessage", message => {
+                    $("#showMessages").append(message + "<br>");
+                });
+
+                // write the connectionId of the client
+                let connectionId_ = "";
+                connection.on("getConnectionId", connectionId => {
+                    connectionId_ = connectionId;
+                    $("#connectionId").html(`Your Connection ID: ${connectionId}`);
+                });
+
+                $("#btnJoinGroup").click(() => {
+                    let groupName = $("input[name=group]:checked").val();
+                    connection.invoke("addGroup", connectionId_, groupName).catch(error => console.log(`Error occured while joining a group. ${error}`));
+                });
+
+                
+            }); 
+        </script>
+    </head>
+    <body>
+       
+        <div style="background-color: black; color: white;" id="connectionId"></div>
+        
+        <input type="radio" name="group" value="A">A
+        <input type="radio" name="group" value="B">B
+        <input type="radio" name="group" value="C">C  
+        <button id="btnJoinGroup">Join Group</button>
+        <br>
+        <div id="status" style="display: none;"></div>
+        <br>
+        <input type="text" id="txtMessage" placeholder="Message">
+        <br>
+        <textarea id="connectionIds" placeholder="Connection Ids"></textarea>
+        <br>
+        <button id="btnSend">Send</button>
+
+        <div id="showMessages"></div>
+
+        <div id="clients">
+
+        </div>
+    </body>
+</html>

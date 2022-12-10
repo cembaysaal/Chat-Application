@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+    <title>Let's chat!</title>
+    <script src="signalr.min.js"></script>
+    <script src="jquery.min.js"></script>
+
+    <script> 
+        // determine the hub that the client will connect to with webSocket
+        $(document).ready(() => {
+            const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:5001/messagehub")
+            .withAutomaticReconnect([1000,1000,2000,5000]) // used when disconnected - parameters are ms 
+            .build();
+            // if the client couldn't connect to the server these functions will be used
+            async function start() {
+                try {
+                    await connection.start();
+                } catch(error) {
+                    setTimeout(() => start(), 2000);
+                }
+            }
+
+            start();
+
+            function animation() {
+                status.fadeIn(2000, () => {
+                    setTimeout(() => {
+                        status.fadeOut(2000);
+                    }, 2000)
+                });
+            }
+
+            const status = $("#status");
+            // this event awakes while trying to reconnect to the server 
+            connection.onreconnecting(error => {
+                status.css("background-color", "blue");
+                status.css("color", "white");
+                status.html("Connecting...");
+                animation();
+            });
+
+            // this event awakes when reconnected to the server
+            connection.onreconnected(connectionId => {
+                status.css("background-color", "green");
+                status.css("color", "white");
+                status.html("Connected!");
+                animation();
+            });
+
+            // this event awakes if client couldn't reconnect to the server after trying few times
+            connection.onclose(error => {
+                status.css("background-color", "red");
+                status.css("color", "white");
+                status.html("Connection failed.");
+                animation();
+            });
+
+
+            // server will notify the clients through this event when a user joined
+            connection.on("userJoined", connectionId => {
+                status.html(`${connectionId} joined.`);
+                status.css("background-color", "green");
+                animation();
+            });
+
+            // server will notify the clients through this event when a user left
+            connection.on("userLeft", connectionId => {
+                status.html(`${connectionId} left.`);
+                status.css("background-color", "red");
+                animation();
+            });
+
+            // write the online clients list to the screen
+            connection.on("clients", clientId => {
+                let clientIdsTxt = "";
+                $.each(clientId, (index, item) => {
+                    clientIdsTxt += `<li>${item}</li>`;
+                });
+                $("#clients").html(clientIdsTxt);                    
+
+            });
+            // send the client's message to the SendMessageAsync method in the server
+            $("#btnSend").click(() => {
+                let message = $("#txtMessage").val();
+                let connectionIds = $("#connectionIds").val().split(",");
+
+                // send to group chosen with radio buttons
+                connection.invoke("SendMessageAsync", message, $("input[name=group]:checked").val()).catch(error => console.log(`Error occured while sending a message. ${error}`));
+                
+                // send to clients with specified connectionIds 
+                //connection.invoke("SendMessageAsync", message, connectionIds).catch(error => console.log(`Error occured while sending a message. ${error}`));
+
+                // send All, Caller, Others
+                //connection.invoke("SendMessageAsync", message).catch(error => console.log(`Error occured while sending a message. ${error}`));
+            });
+
+            // take the message that have been send from the server with the RPC system
+            connection.on("receiveMessage", message => {
+                $("#showMessages").append(message + "<br>");
+            });
+
+            // write the connectionId of the client
+            let connectionId_ = "";
+            connection.on("getConnectionId", connectionId => {
+                connectionId_ = connectionId;
+                $("#connectionId").html(`Your Connection ID: ${connectionId}`);
+            });
+
+            $("#btnJoinGroup").click(() => {
+                let groupName = $("input[name=group]:checked").val();
+                connection.invoke("addGroup", connectionId_, groupName).catch(error => console.log(`Error occured while joining a group. ${error}`));
+            });
+
+            
+        }); 
+    </script>
+  </head>
+  <body>
+    <style>
+        body{background:#f5f8fa}
+        @media (min-width: 1200px) {
+            .container{max-width: 1200px;}
+        }
+        
+    </style>
+    <h1>Let's chat!</h1>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+    <div class="alert alert-info" role="alert" id="connectionId"></div>
+    
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <h3>Group Chat</h3>
+                <br>
+                <div class="dropdown">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                      Select Group 
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                      <a class="dropdown-item" href="#">Group A</a>
+                      <a class="dropdown-item" href="#">Group B</a>
+                      <a class="dropdown-item" href="#">Group C</a>
+                    </div>
+                  </div>
+                <br>
+                <button type="button" class="btn btn-info" id="btnJoinGroup">Join Group</button>
+                <br>
+                <div  id="status" style="display: none;"></div>
+                <br>
+                <input type="text" id="txtMessage" placeholder="Message">
+                <br>
+                <textarea id="connectionIds" placeholder="Connection Ids"></textarea>
+                <br>
+                <button id="btnSend">Send</button>
+
+                <div id="showMessages"></div>
+
+                <div id="clients"></div>
+            </div>
+            <div class="col">
+                2
+            </div>
+            <div class="col">
+                3
+            </div>
+        </div>
+    </div>
+    </body>
+</html>
+
